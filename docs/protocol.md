@@ -168,6 +168,31 @@ Fields decoded from firmware log strings:
 ESPHome currently publishes the user-facing humidity and temperature from offsets
 `9` and `10`.
 
+## Mode Findings
+
+The stock firmware uses four work-mode strings:
+
+| Stock string | Internal app mode | Notes |
+| --- | --- | --- |
+| `auto` | `0` | Reported as `auto`. The decompiled stock mode setter updates local state in the path found so far; direct UART behavior still needs device testing. |
+| `humidity` | `1` | Sends command `0x4114`; payload first byte is the saved humidity target. |
+| `sleep` | `2` or `3` | Sends command `0x4082`; payload first byte is the saved humidity target. Stock reporting maps both `2` and `3` to `sleep`. |
+| `manual` | `4` | Sends command `0xA260`; payload controls warm/mist enable and level. |
+
+The raw MCU status mode byte at status offset `11` is not the same enum as the
+stock app mode. Stock firmware remaps it like this:
+
+| MCU raw status mode | Stock app-side mode |
+| --- | --- |
+| `0` | `0` / `auto` |
+| `1` | `4` / `manual` |
+| `2` | `2` / `sleep`; stock state also forces display off |
+| `3` | `1` / `humidity` |
+| other | `0` / `auto` |
+
+This is why the Home Assistant `Mode` select is currently optimistic instead of
+directly derived from the raw status byte.
+
 ## ESPHome Component
 
 Current working component:
@@ -239,7 +264,9 @@ python -m esptool --chip esp32 --port <serial-port> --baud 460800 write-flash 0x
 
 ## Open Questions
 
-- Exact user-facing mapping for mode values.
-- Exact behavior of humidity mode and sleep/auto mode raw values.
+- Whether `auto` mode can be commanded directly through a UART frame, or whether
+  stock firmware treats it as local app state plus normal status polling.
+- Exact replacement-firmware behavior when switching between `auto`, `humidity`,
+  and `sleep`.
 - Whether timer/display behavior is identical across all LV600S hardware revisions.
 - Whether this same component works unchanged on related Levoit/VeSync models.
