@@ -36,7 +36,10 @@ Working status:
 
 - Current humidity
 - Current temperature
-- Water/tank status
+- Water low/empty status
+- Tank removed status
+- Humidifying status
+- Timer remaining
 - Raw diagnostic fields disabled by default
 
 Raw diagnostic commands are included for manual mode, humidity mode, and sleep/auto

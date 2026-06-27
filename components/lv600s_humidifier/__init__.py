@@ -10,6 +10,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
+    UNIT_SECOND,
 )
 
 DEPENDENCIES = ["uart"]
@@ -25,11 +26,14 @@ CONF_STATUS_INTERVAL = "status_interval"
 CONF_POWER = "power"
 CONF_DISPLAY = "display"
 CONF_WATER_LACKS = "water_lacks"
+CONF_TANK_REMOVED = "tank_removed"
+CONF_HUMIDIFYING = "humidifying"
 CONF_CURRENT_HUMIDITY = "current_humidity"
 CONF_CURRENT_TEMPERATURE = "current_temperature"
 CONF_TARGET_HUMIDITY = "target_humidity"
 CONF_MIST_LEVEL = "mist_level"
 CONF_WARM_LEVEL = "warm_level"
+CONF_TIMER_REMAINING = "timer_remaining"
 CONF_MODE = "mode"
 CONF_FOG_STATUS = "fog_status"
 CONF_CONTAINER_STATE = "container_state"
@@ -46,6 +50,10 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_DISPLAY): binary_sensor.binary_sensor_schema(),
         cv.Optional(CONF_WATER_LACKS): binary_sensor.binary_sensor_schema(),
+        cv.Optional(CONF_TANK_REMOVED): binary_sensor.binary_sensor_schema(
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ),
+        cv.Optional(CONF_HUMIDIFYING): binary_sensor.binary_sensor_schema(),
         cv.Optional(CONF_CURRENT_HUMIDITY): sensor.sensor_schema(
             unit_of_measurement=UNIT_PERCENT,
             accuracy_decimals=0,
@@ -71,6 +79,12 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_WARM_LEVEL): sensor.sensor_schema(
             accuracy_decimals=0,
             state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_TIMER_REMAINING): sensor.sensor_schema(
+            unit_of_measurement=UNIT_SECOND,
+            accuracy_decimals=0,
+            state_class=STATE_CLASS_MEASUREMENT,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
         cv.Optional(CONF_MODE): sensor.sensor_schema(
             accuracy_decimals=0,
@@ -114,6 +128,12 @@ async def to_code(config):
     if CONF_WATER_LACKS in config:
         sens = await binary_sensor.new_binary_sensor(config[CONF_WATER_LACKS])
         cg.add(var.set_water_lacks_sensor(sens))
+    if CONF_TANK_REMOVED in config:
+        sens = await binary_sensor.new_binary_sensor(config[CONF_TANK_REMOVED])
+        cg.add(var.set_tank_removed_sensor(sens))
+    if CONF_HUMIDIFYING in config:
+        sens = await binary_sensor.new_binary_sensor(config[CONF_HUMIDIFYING])
+        cg.add(var.set_humidifying_sensor(sens))
 
     if CONF_CURRENT_HUMIDITY in config:
         sens = await sensor.new_sensor(config[CONF_CURRENT_HUMIDITY])
@@ -130,6 +150,9 @@ async def to_code(config):
     if CONF_WARM_LEVEL in config:
         sens = await sensor.new_sensor(config[CONF_WARM_LEVEL])
         cg.add(var.set_warm_level_sensor(sens))
+    if CONF_TIMER_REMAINING in config:
+        sens = await sensor.new_sensor(config[CONF_TIMER_REMAINING])
+        cg.add(var.set_timer_remaining_sensor(sens))
     if CONF_MODE in config:
         sens = await sensor.new_sensor(config[CONF_MODE])
         cg.add(var.set_mode_sensor(sens))

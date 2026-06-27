@@ -123,6 +123,7 @@ Confirmed from stock firmware:
 | Display | `0xA105` | `[level]` | `00` off, `64` on |
 | Target humidity | `0xA2E8` | `[00, target]` | Target range 40-80 |
 | Timer | `0xA264` | `uint32_le seconds` | Max `43200` seconds |
+| Timer remaining report | `0xA265` | `uint16_le remaining_seconds` | Sent by MCU; parsed as state |
 | Mist level | `0x4113` | `[level, 00, 00, 00]` | App supports 1-9 |
 | Warm level | `0x4112` | `[level, 00, 00, 00, 00]` | Valid 0-3 |
 | Manual mode level | `0xA260` | `[warm_enable, mist_enable, level]` | Raw command exposed as diagnostic |
@@ -153,20 +154,25 @@ Fields decoded from firmware log strings:
 | `1` | MCU/protocol version minor |
 | `2` | MCU/protocol version patch |
 | `3` | Power/enabled |
-| `4` | Container/tank state |
-| `5` | Water lacks |
+| `4` | Container/tank state: `0` tank present, `1` tank removed |
+| `5` | Water lacks: `0` water OK, `1` water low/empty |
 | `6` | Display config |
-| `7` | Fog status |
+| `7` | Fog status: `0` not humidifying, `1` humidifying |
 | `8` | Target humidity |
 | `9` | Current humidity |
 | `10` | Current temperature |
 | `11` | Mode |
-| `12` | Mist level |
-| `13` | Warm level |
+| `12` | Mist level, directly matches the controlled mist level |
+| `13` | Warm level, directly matches the controlled warm level |
 | `14` | Other exception |
 
 ESPHome currently publishes the user-facing humidity and temperature from offsets
 `9` and `10`.
+
+Timer remaining is separate from the normal `0x4110` status payload. Stock
+firmware handles command `0xA265`, stores the first two payload bytes as a
+little-endian remaining-seconds value, and then reports that as
+`extension.timer_remain` to the app.
 
 ## Mode Findings
 
@@ -192,6 +198,26 @@ stock app mode. Stock firmware remaps it like this:
 
 This is why the Home Assistant `Mode` select is currently optimistic instead of
 directly derived from the raw status byte.
+
+Stock command guard behavior:
+
+- Target humidity changes are rejected in `manual` and `sleep`.
+- Mist/warm level changes are rejected in `sleep`.
+- Display changes are rejected in `sleep`.
+- Relative level changes are rejected in `auto`.
+- Most control commands are rejected while water is low/empty or the tank is
+  removed.
+
+## Result Handling
+
+The stock firmware has a result/ACK layer around the UART commands. Some commands
+return after the UART frame is queued, while others complete through ACK handlers
+such as `0xA003`, `0xA265`, `0xA2E8`, and `0xA260`.
+
+For ESPHome, the practical model is: send the command, then reconcile state from
+the MCU status/ACK stream. The stable user-facing states are the decoded status
+fields and `0xA265` timer remaining; raw cloud-style result codes can be added
+later if useful.
 
 ## ESPHome Component
 
@@ -227,6 +253,9 @@ Primary exposed sensors:
 - Current humidity
 - Current temperature
 - Water lacks
+- Tank removed
+- Humidifying
+- Timer remaining
 
 The `Mode` select is optimistic. The MCU status payload has a raw mode byte, but
 that byte does not currently behave like a direct Home Assistant select state, so

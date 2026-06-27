@@ -24,12 +24,15 @@ class LV600SHumidifier : public Component, public uart::UARTDevice {
   void set_power_sensor(binary_sensor::BinarySensor *sensor) { this->power_sensor_ = sensor; }
   void set_display_sensor(binary_sensor::BinarySensor *sensor) { this->display_sensor_ = sensor; }
   void set_water_lacks_sensor(binary_sensor::BinarySensor *sensor) { this->water_lacks_sensor_ = sensor; }
+  void set_tank_removed_sensor(binary_sensor::BinarySensor *sensor) { this->tank_removed_sensor_ = sensor; }
+  void set_humidifying_sensor(binary_sensor::BinarySensor *sensor) { this->humidifying_sensor_ = sensor; }
 
   void set_current_humidity_sensor(sensor::Sensor *sensor) { this->current_humidity_sensor_ = sensor; }
   void set_current_temperature_sensor(sensor::Sensor *sensor) { this->current_temperature_sensor_ = sensor; }
   void set_target_humidity_sensor(sensor::Sensor *sensor) { this->target_humidity_sensor_ = sensor; }
   void set_mist_level_sensor(sensor::Sensor *sensor) { this->mist_level_sensor_ = sensor; }
   void set_warm_level_sensor(sensor::Sensor *sensor) { this->warm_level_sensor_ = sensor; }
+  void set_timer_remaining_sensor(sensor::Sensor *sensor) { this->timer_remaining_sensor_ = sensor; }
   void set_mode_sensor(sensor::Sensor *sensor) { this->mode_sensor_ = sensor; }
   void set_fog_status_sensor(sensor::Sensor *sensor) { this->fog_status_sensor_ = sensor; }
   void set_container_state_sensor(sensor::Sensor *sensor) { this->container_state_sensor_ = sensor; }
@@ -59,11 +62,14 @@ class LV600SHumidifier : public Component, public uart::UARTDevice {
   bool is_power_on() const { return this->power_on_; }
   bool is_display_on() const { return this->display_on_; }
   bool water_lacks() const { return this->water_lacks_; }
+  bool is_tank_removed() const { return this->container_state_ != 0; }
+  bool is_humidifying() const { return this->fog_status_ != 0; }
   float get_current_humidity() const { return this->current_humidity_; }
   float get_current_temperature() const { return this->current_temperature_; }
   float get_target_humidity() const { return this->target_humidity_; }
   float get_mist_level() const { return this->mist_level_; }
   float get_warm_level() const { return this->warm_level_; }
+  float get_timer_remaining() const { return this->timer_remaining_; }
   float get_mode() const { return this->mode_; }
   std::string get_mode_name() const;
 
@@ -81,6 +87,7 @@ class LV600SHumidifier : public Component, public uart::UARTDevice {
   static constexpr uint16_t CMD_MANUAL_MODE_LEVEL = 0xA260;
   static constexpr uint16_t CMD_DISPLAY = 0xA105;
   static constexpr uint16_t CMD_TIMER = 0xA264;
+  static constexpr uint16_t CMD_TIMER_REMAINING = 0xA265;
   static constexpr uint16_t CMD_TARGET_HUMIDITY = 0xA2E8;
   static constexpr uint16_t CMD_REBOOT_MCU = 0xD101;
   static constexpr uint16_t CMD_UART_TEST = 0xD007;
@@ -89,6 +96,7 @@ class LV600SHumidifier : public Component, public uart::UARTDevice {
   void process_frame_(const std::vector<uint8_t> &frame);
   void process_body_(const uint8_t *body, uint16_t len);
   void process_status_(const uint8_t *status, uint16_t len);
+  void process_timer_remaining_(const uint8_t *payload, uint16_t len);
   void send_command_(uint16_t command, const uint8_t *payload, uint16_t payload_len, bool request_ack = true);
   uint8_t frame_checksum_(const std::vector<uint8_t> &frame) const;
   void publish_last_frame_(uint16_t command, uint16_t payload_len);
@@ -115,17 +123,21 @@ class LV600SHumidifier : public Component, public uart::UARTDevice {
   uint8_t fog_status_{0};
   uint8_t container_state_{0};
   uint8_t other_exception_{0};
+  uint16_t timer_remaining_{0};
   uint8_t mcu_version_[3]{0, 0, 0};
 
   binary_sensor::BinarySensor *power_sensor_{nullptr};
   binary_sensor::BinarySensor *display_sensor_{nullptr};
   binary_sensor::BinarySensor *water_lacks_sensor_{nullptr};
+  binary_sensor::BinarySensor *tank_removed_sensor_{nullptr};
+  binary_sensor::BinarySensor *humidifying_sensor_{nullptr};
 
   sensor::Sensor *current_humidity_sensor_{nullptr};
   sensor::Sensor *current_temperature_sensor_{nullptr};
   sensor::Sensor *target_humidity_sensor_{nullptr};
   sensor::Sensor *mist_level_sensor_{nullptr};
   sensor::Sensor *warm_level_sensor_{nullptr};
+  sensor::Sensor *timer_remaining_sensor_{nullptr};
   sensor::Sensor *mode_sensor_{nullptr};
   sensor::Sensor *fog_status_sensor_{nullptr};
   sensor::Sensor *container_state_sensor_{nullptr};

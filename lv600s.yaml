@@ -64,6 +64,11 @@ lv600s_humidifier:
   water_lacks:
     name: "Water Lacks"
     entity_category: diagnostic
+  tank_removed:
+    name: "Tank Removed"
+    entity_category: diagnostic
+  humidifying:
+    name: "Humidifying"
   current_humidity:
     name: "Current Humidity"
   current_temperature:
@@ -80,6 +85,9 @@ lv600s_humidifier:
     name: "Warm Level State"
     entity_category: diagnostic
     disabled_by_default: true
+  timer_remaining:
+    name: "Timer Remaining"
+    entity_category: diagnostic
   mode:
     name: "Mode Raw"
     disabled_by_default: true

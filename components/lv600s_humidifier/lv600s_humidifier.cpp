@@ -80,6 +80,8 @@ void LV600SHumidifier::set_timer_seconds(uint32_t seconds) {
       static_cast<uint8_t>((seconds >> 24) & 0xFF),
   };
   this->send_command_(CMD_TIMER, payload, sizeof(payload));
+  this->timer_remaining_ = static_cast<uint16_t>(seconds);
+  if (this->timer_remaining_sensor_ != nullptr) this->timer_remaining_sensor_->publish_state(this->timer_remaining_);
 }
 
 void LV600SHumidifier::set_manual_mode_level(uint8_t warm_enable, uint8_t mist_enable, uint8_t level) {
@@ -200,6 +202,8 @@ void LV600SHumidifier::process_body_(const uint8_t *body, uint16_t len) {
 
   if (command == CMD_STATUS) {
     this->process_status_(&body[4], payload_len);
+  } else if (command == CMD_TIMER_REMAINING) {
+    this->process_timer_remaining_(&body[4], payload_len);
   } else {
     ESP_LOGD(TAG, "RX command=0x%04X payload_len=%u", command, payload_len);
   }
@@ -231,6 +235,8 @@ void LV600SHumidifier::process_status_(const uint8_t *status, uint16_t len) {
   if (this->power_sensor_ != nullptr) this->power_sensor_->publish_state(this->power_on_);
   if (this->display_sensor_ != nullptr) this->display_sensor_->publish_state(this->display_on_);
   if (this->water_lacks_sensor_ != nullptr) this->water_lacks_sensor_->publish_state(this->water_lacks_);
+  if (this->tank_removed_sensor_ != nullptr) this->tank_removed_sensor_->publish_state(this->container_state_ != 0);
+  if (this->humidifying_sensor_ != nullptr) this->humidifying_sensor_->publish_state(this->fog_status_ != 0);
   if (this->current_humidity_sensor_ != nullptr) this->current_humidity_sensor_->publish_state(this->current_humidity_);
   if (this->current_temperature_sensor_ != nullptr)
     this->current_temperature_sensor_->publish_state(this->current_temperature_);
@@ -252,6 +258,17 @@ void LV600SHumidifier::process_status_(const uint8_t *status, uint16_t len) {
   ESP_LOGD(TAG, "Status power=%u display=%u water=%u hum=%u temp=%u target=%u mist=%u warm=%u mode=%u",
            this->power_on_, this->display_on_, this->water_lacks_, this->current_humidity_,
            this->current_temperature_, this->target_humidity_, this->mist_level_, this->warm_level_, this->mode_);
+}
+
+void LV600SHumidifier::process_timer_remaining_(const uint8_t *payload, uint16_t len) {
+  if (len < 2) {
+    ESP_LOGW(TAG, "Short timer remaining payload len=%u", len);
+    return;
+  }
+
+  this->timer_remaining_ = static_cast<uint16_t>(payload[0]) | (static_cast<uint16_t>(payload[1]) << 8);
+  if (this->timer_remaining_sensor_ != nullptr) this->timer_remaining_sensor_->publish_state(this->timer_remaining_);
+  ESP_LOGD(TAG, "Timer remaining=%u", this->timer_remaining_);
 }
 
 void LV600SHumidifier::send_command_(uint16_t command, const uint8_t *payload, uint16_t payload_len,
