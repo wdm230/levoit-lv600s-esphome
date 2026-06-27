@@ -203,6 +203,11 @@ Primary exposed sensors:
 - Current temperature
 - Water lacks
 
+The `Mode` select is optimistic. The MCU status payload has a raw mode byte, but
+that byte does not currently behave like a direct Home Assistant select state, so
+the raw value is kept as a diagnostic while the select represents the last command
+sent from ESPHome.
+
 Diagnostic/disabled-by-default entities:
 
 - Raw status fields

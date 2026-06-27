@@ -119,11 +119,12 @@ switch:
 select:
   - platform: template
     name: "Mode"
+    optimistic: true
+    restore_value: false
     options:
       - "Manual"
       - "Target Humidity"
       - "Sleep / Auto"
-    lambda: return id(lv600s).get_mode_name();
     set_action:
       - lambda: |-
           if (x == "Manual") {

@@ -42,6 +42,9 @@ Working status:
 Raw diagnostic commands are included for manual mode, humidity mode, and sleep/auto
 mode. Their exact user-facing mapping still needs more testing.
 
+The `Mode` select is optimistic because the MCU's raw status mode byte does not
+currently map cleanly back to the three user-facing mode labels.
+
 ## Install
 
 Copy or clone this repository into your ESPHome config directory, then copy:
