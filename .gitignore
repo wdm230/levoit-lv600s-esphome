@@ -1,0 +1,17 @@
+.esphome/
+.pioenvs/
+.piolibdeps/
+.platformio/
+__pycache__/
+*.pyc
+
+secrets.yaml
+*.bin
+*.elf
+*.map
+*.sr
+*.pvs
+
+flash/
+ghidra_projects/
+tools/jdk/

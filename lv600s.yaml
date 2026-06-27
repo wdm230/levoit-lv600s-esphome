@@ -1,0 +1,222 @@
+esphome:
+  name: lv600s-humidifier
+  friendly_name: LV600S Humidifier
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+    sdkconfig_options:
+      CONFIG_FREERTOS_UNICORE: y
+
+logger:
+  level: INFO
+  baud_rate: 0
+  logs:
+    lv600s_humidifier: INFO
+    sensor: WARN
+    binary_sensor: WARN
+    text_sensor: WARN
+
+api:
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "LV600S Setup"
+    password: !secret fallback_ap_password
+
+captive_portal:
+
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [lv600s_humidifier]
+
+# Stock firmware initializes UART1 at 9600 baud with TX GPIO17 and RX GPIO16.
+uart:
+  id: mcu_uart
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 9600
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+
+lv600s_humidifier:
+  id: lv600s
+  uart_id: mcu_uart
+  status_interval: 5s
+  power:
+    name: "Power State"
+    entity_category: diagnostic
+    disabled_by_default: true
+  display:
+    name: "Display State"
+    entity_category: diagnostic
+    disabled_by_default: true
+  water_lacks:
+    name: "Water Lacks"
+    entity_category: diagnostic
+  current_humidity:
+    name: "Current Humidity"
+  current_temperature:
+    name: "Current Temperature"
+  target_humidity:
+    name: "Target Humidity State"
+    entity_category: diagnostic
+    disabled_by_default: true
+  mist_level:
+    name: "Mist Level State"
+    entity_category: diagnostic
+    disabled_by_default: true
+  warm_level:
+    name: "Warm Level State"
+    entity_category: diagnostic
+    disabled_by_default: true
+  mode:
+    name: "Mode Raw"
+    disabled_by_default: true
+  fog_status:
+    name: "Fog Status Raw"
+    disabled_by_default: true
+  container_state:
+    name: "Container State Raw"
+    disabled_by_default: true
+  other_exception:
+    name: "Other Exception Raw"
+    disabled_by_default: true
+  mcu_version:
+    name: "MCU Version"
+    disabled_by_default: true
+  last_frame:
+    name: "Last A5 Frame"
+    disabled_by_default: true
+
+switch:
+  - platform: template
+    name: "Power"
+    lambda: return id(lv600s).is_power_on();
+    turn_on_action:
+      - lambda: id(lv600s).set_power(true);
+    turn_off_action:
+      - lambda: id(lv600s).set_power(false);
+
+  - platform: template
+    name: "Display"
+    lambda: return id(lv600s).is_display_on();
+    turn_on_action:
+      - lambda: id(lv600s).set_display(true);
+    turn_off_action:
+      - lambda: id(lv600s).set_display(false);
+
+number:
+  - platform: template
+    name: "Target Humidity"
+    min_value: 40
+    max_value: 80
+    step: 5
+    mode: slider
+    lambda: return id(lv600s).get_target_humidity();
+    set_action:
+      - lambda: id(lv600s).set_target_humidity((uint8_t) x);
+
+  - platform: template
+    name: "Mist Level"
+    min_value: 1
+    max_value: 9
+    step: 1
+    mode: slider
+    lambda: return id(lv600s).get_mist_level();
+    set_action:
+      - lambda: id(lv600s).set_mist_level((uint8_t) x);
+
+  - platform: template
+    name: "Warm Level"
+    min_value: 0
+    max_value: 3
+    step: 1
+    mode: slider
+    lambda: return id(lv600s).get_warm_level();
+    set_action:
+      - lambda: id(lv600s).set_warm_level((uint8_t) x);
+
+  - platform: template
+    name: "Timer Minutes"
+    min_value: 0
+    max_value: 720
+    step: 30
+    mode: box
+    optimistic: true
+    restore_value: false
+    set_action:
+      - lambda: id(lv600s).set_timer_seconds((uint32_t) (x * 60.0f));
+
+  - platform: template
+    name: "Manual Mode Mist Level"
+    min_value: 1
+    max_value: 9
+    step: 1
+    mode: box
+    entity_category: diagnostic
+    disabled_by_default: true
+    optimistic: true
+    restore_value: false
+    set_action:
+      - lambda: id(lv600s).set_manual_mode_level(0, 1, (uint8_t) x);
+
+  - platform: template
+    name: "Manual Mode Warm Level"
+    min_value: 0
+    max_value: 3
+    step: 1
+    mode: box
+    entity_category: diagnostic
+    disabled_by_default: true
+    optimistic: true
+    restore_value: false
+    set_action:
+      - lambda: id(lv600s).set_manual_mode_level(1, 0, (uint8_t) x);
+
+  - platform: template
+    name: "Humidity Mode Raw"
+    min_value: 0
+    max_value: 255
+    step: 1
+    mode: box
+    entity_category: diagnostic
+    disabled_by_default: true
+    optimistic: true
+    restore_value: false
+    set_action:
+      - lambda: id(lv600s).set_humidity_mode_raw((uint8_t) x);
+
+  - platform: template
+    name: "Sleep Auto Mode Raw"
+    min_value: 0
+    max_value: 255
+    step: 1
+    mode: box
+    entity_category: diagnostic
+    disabled_by_default: true
+    optimistic: true
+    restore_value: false
+    set_action:
+      - lambda: id(lv600s).set_sleep_auto_mode_raw((uint8_t) x);
+
+button:
+  - platform: template
+    name: "Query Status"
+    entity_category: diagnostic
+    on_press:
+      - lambda: id(lv600s).query_status();
+
+  - platform: template
+    name: "Clear Timer"
+    on_press:
+      - lambda: id(lv600s).clear_timer();
