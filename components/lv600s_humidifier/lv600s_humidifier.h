@@ -48,6 +48,9 @@ class LV600SHumidifier : public Component, public uart::UARTDevice {
   void set_manual_mode_level(uint8_t warm_enable, uint8_t mist_enable, uint8_t level);
   void set_humidity_mode_raw(uint8_t value);
   void set_sleep_auto_mode_raw(uint8_t value);
+  void set_manual_mode();
+  void set_target_humidity_mode();
+  void set_sleep_auto_mode();
   void reboot_mcu(uint8_t value);
   void uart_test();
   void clear_timer() { this->set_timer_seconds(0); }
@@ -62,6 +65,7 @@ class LV600SHumidifier : public Component, public uart::UARTDevice {
   float get_mist_level() const { return this->mist_level_; }
   float get_warm_level() const { return this->warm_level_; }
   float get_mode() const { return this->mode_; }
+  std::string get_mode_name() const;
 
  protected:
   static constexpr uint8_t FRAME_HEADER = 0xA5;
@@ -89,6 +93,7 @@ class LV600SHumidifier : public Component, public uart::UARTDevice {
   uint8_t frame_checksum_(const std::vector<uint8_t> &frame) const;
   void publish_last_frame_(uint16_t command, uint16_t payload_len);
   void reset_rx_();
+  uint8_t target_humidity_or_default_() const;
 
   uint32_t status_interval_ms_{5000};
   uint32_t last_status_query_ms_{0};

@@ -17,6 +17,7 @@ logger:
     sensor: WARN
     binary_sensor: WARN
     text_sensor: WARN
+    select: WARN
 
 api:
 
@@ -114,6 +115,24 @@ switch:
       - lambda: id(lv600s).set_display(true);
     turn_off_action:
       - lambda: id(lv600s).set_display(false);
+
+select:
+  - platform: template
+    name: "Mode"
+    options:
+      - "Manual"
+      - "Target Humidity"
+      - "Sleep / Auto"
+    lambda: return id(lv600s).get_mode_name();
+    set_action:
+      - lambda: |-
+          if (x == "Manual") {
+            id(lv600s).set_manual_mode();
+          } else if (x == "Target Humidity") {
+            id(lv600s).set_target_humidity_mode();
+          } else if (x == "Sleep / Auto") {
+            id(lv600s).set_sleep_auto_mode();
+          }
 
 number:
   - platform: template

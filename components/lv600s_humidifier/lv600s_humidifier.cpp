@@ -102,11 +102,41 @@ void LV600SHumidifier::set_sleep_auto_mode_raw(uint8_t value) {
   this->send_command_(CMD_SLEEP_AUTO_MODE, payload, sizeof(payload));
 }
 
+void LV600SHumidifier::set_manual_mode() {
+  const uint8_t level = clamp<uint8_t>(this->mist_level_ == 0 ? 1 : this->mist_level_, 1, 9);
+  this->set_manual_mode_level(0, 1, level);
+  this->mode_ = 0;
+}
+
+void LV600SHumidifier::set_target_humidity_mode() {
+  const uint8_t target = this->target_humidity_or_default_();
+  this->set_humidity_mode_raw(target);
+  this->mode_ = 3;
+}
+
+void LV600SHumidifier::set_sleep_auto_mode() {
+  const uint8_t target = this->target_humidity_or_default_();
+  this->set_sleep_auto_mode_raw(target);
+  this->mode_ = 1;
+}
+
 void LV600SHumidifier::reboot_mcu(uint8_t value) {
   this->send_command_(CMD_REBOOT_MCU, &value, 1);
 }
 
 void LV600SHumidifier::uart_test() { this->send_command_(CMD_UART_TEST, nullptr, 0); }
+
+std::string LV600SHumidifier::get_mode_name() const {
+  switch (this->mode_) {
+    case 1:
+    case 2:
+      return "Sleep / Auto";
+    case 3:
+      return "Target Humidity";
+    default:
+      return "Manual";
+  }
+}
 
 void LV600SHumidifier::process_byte_(uint8_t byte) {
   if (this->rx_frame_.empty()) {
@@ -273,6 +303,13 @@ void LV600SHumidifier::publish_last_frame_(uint16_t command, uint16_t payload_le
 void LV600SHumidifier::reset_rx_() {
   this->rx_frame_.clear();
   this->rx_expected_len_ = 0;
+}
+
+uint8_t LV600SHumidifier::target_humidity_or_default_() const {
+  if (this->target_humidity_ >= 40 && this->target_humidity_ <= 80) {
+    return this->target_humidity_;
+  }
+  return 50;
 }
 
 }  // namespace lv600s_humidifier

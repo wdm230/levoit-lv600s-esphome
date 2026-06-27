@@ -188,6 +188,7 @@ lv600s.yaml
 Primary exposed controls:
 
 - Power switch
+- Mode select: Manual, Target Humidity, Sleep / Auto
 - Display switch
 - Target humidity number
 - Mist level number, 1-9

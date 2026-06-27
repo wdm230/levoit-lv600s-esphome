@@ -23,6 +23,7 @@ The ESP32-SOLO-1 is single-core, so the YAML enables `CONFIG_FREERTOS_UNICORE`.
 Working controls:
 
 - Power
+- Mode
 - Display on/off
 - Target humidity
 - Mist level 1-9
