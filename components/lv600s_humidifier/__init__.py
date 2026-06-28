@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_POWER,
+    DEVICE_CLASS_PROBLEM,
     DEVICE_CLASS_TEMPERATURE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
@@ -49,9 +50,11 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_POWER,
         ),
         cv.Optional(CONF_DISPLAY): binary_sensor.binary_sensor_schema(),
-        cv.Optional(CONF_WATER_LACKS): binary_sensor.binary_sensor_schema(),
+        cv.Optional(CONF_WATER_LACKS): binary_sensor.binary_sensor_schema(
+            device_class=DEVICE_CLASS_PROBLEM,
+        ),
         cv.Optional(CONF_TANK_REMOVED): binary_sensor.binary_sensor_schema(
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            device_class=DEVICE_CLASS_PROBLEM,
         ),
         cv.Optional(CONF_HUMIDIFYING): binary_sensor.binary_sensor_schema(),
         cv.Optional(CONF_CURRENT_HUMIDITY): sensor.sensor_schema(

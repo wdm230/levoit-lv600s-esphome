@@ -252,7 +252,7 @@ Primary exposed sensors:
 
 - Current humidity
 - Current temperature
-- Water lacks
+- Water low
 - Tank removed
 - Humidifying
 - Timer remaining
