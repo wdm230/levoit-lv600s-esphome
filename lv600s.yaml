@@ -67,6 +67,10 @@ lv600s_humidifier:
     name: "Tank Removed"
   humidifying:
     name: "Humidifying"
+  warm_enabled:
+    name: "Warm Enabled"
+    entity_category: diagnostic
+    disabled_by_default: true
   current_humidity:
     name: "Current Humidity"
   current_temperature:
@@ -86,6 +90,9 @@ lv600s_humidifier:
   timer_remaining:
     name: "Timer Remaining"
     entity_category: diagnostic
+  display_config:
+    name: "Display Config Raw"
+    disabled_by_default: true
   mode:
     name: "Mode Raw"
     disabled_by_default: true
@@ -95,6 +102,9 @@ lv600s_humidifier:
   container_state:
     name: "Container State Raw"
     disabled_by_default: true
+  status_byte_14:
+    name: "Status Byte 14 Raw"
+    disabled_by_default: true
   other_exception:
     name: "Other Exception Raw"
     disabled_by_default: true
@@ -103,6 +113,9 @@ lv600s_humidifier:
     disabled_by_default: true
   last_frame:
     name: "Last A5 Frame"
+    disabled_by_default: true
+  last_ack:
+    name: "Last A5 ACK"
     disabled_by_default: true
 
 switch:
@@ -130,15 +143,15 @@ select:
     options:
       - "Manual"
       - "Target Humidity"
-      - "Sleep / Auto"
+      - "Sleep"
     set_action:
       - lambda: |-
           if (x == "Manual") {
             id(lv600s).set_manual_mode();
           } else if (x == "Target Humidity") {
             id(lv600s).set_target_humidity_mode();
-          } else if (x == "Sleep / Auto") {
-            id(lv600s).set_sleep_auto_mode();
+          } else if (x == "Sleep") {
+            id(lv600s).set_sleep_mode();
           }
 
 number:
@@ -223,7 +236,7 @@ number:
       - lambda: id(lv600s).set_humidity_mode_raw((uint8_t) x);
 
   - platform: template
-    name: "Sleep Auto Mode Raw"
+    name: "Sleep Mode Raw"
     min_value: 0
     max_value: 255
     step: 1
@@ -233,7 +246,7 @@ number:
     optimistic: true
     restore_value: false
     set_action:
-      - lambda: id(lv600s).set_sleep_auto_mode_raw((uint8_t) x);
+      - lambda: id(lv600s).set_sleep_mode_raw((uint8_t) x);
 
 button:
   - platform: template

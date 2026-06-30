@@ -29,18 +29,22 @@ CONF_DISPLAY = "display"
 CONF_WATER_LACKS = "water_lacks"
 CONF_TANK_REMOVED = "tank_removed"
 CONF_HUMIDIFYING = "humidifying"
+CONF_WARM_ENABLED = "warm_enabled"
 CONF_CURRENT_HUMIDITY = "current_humidity"
 CONF_CURRENT_TEMPERATURE = "current_temperature"
 CONF_TARGET_HUMIDITY = "target_humidity"
 CONF_MIST_LEVEL = "mist_level"
 CONF_WARM_LEVEL = "warm_level"
 CONF_TIMER_REMAINING = "timer_remaining"
+CONF_DISPLAY_CONFIG = "display_config"
 CONF_MODE = "mode"
 CONF_FOG_STATUS = "fog_status"
 CONF_CONTAINER_STATE = "container_state"
+CONF_STATUS_BYTE_14 = "status_byte_14"
 CONF_OTHER_EXCEPTION = "other_exception"
 CONF_MCU_VERSION = "mcu_version"
 CONF_LAST_FRAME = "last_frame"
+CONF_LAST_ACK = "last_ack"
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -57,6 +61,7 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_PROBLEM,
         ),
         cv.Optional(CONF_HUMIDIFYING): binary_sensor.binary_sensor_schema(),
+        cv.Optional(CONF_WARM_ENABLED): binary_sensor.binary_sensor_schema(),
         cv.Optional(CONF_CURRENT_HUMIDITY): sensor.sensor_schema(
             unit_of_measurement=UNIT_PERCENT,
             accuracy_decimals=0,
@@ -89,6 +94,10 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
+        cv.Optional(CONF_DISPLAY_CONFIG): sensor.sensor_schema(
+            accuracy_decimals=0,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ),
         cv.Optional(CONF_MODE): sensor.sensor_schema(
             accuracy_decimals=0,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
@@ -101,6 +110,10 @@ CONFIG_SCHEMA = cv.Schema(
             accuracy_decimals=0,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
+        cv.Optional(CONF_STATUS_BYTE_14): sensor.sensor_schema(
+            accuracy_decimals=0,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ),
         cv.Optional(CONF_OTHER_EXCEPTION): sensor.sensor_schema(
             accuracy_decimals=0,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
@@ -109,6 +122,9 @@ CONFIG_SCHEMA = cv.Schema(
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
         cv.Optional(CONF_LAST_FRAME): text_sensor.text_sensor_schema(
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ),
+        cv.Optional(CONF_LAST_ACK): text_sensor.text_sensor_schema(
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
     }
@@ -137,6 +153,9 @@ async def to_code(config):
     if CONF_HUMIDIFYING in config:
         sens = await binary_sensor.new_binary_sensor(config[CONF_HUMIDIFYING])
         cg.add(var.set_humidifying_sensor(sens))
+    if CONF_WARM_ENABLED in config:
+        sens = await binary_sensor.new_binary_sensor(config[CONF_WARM_ENABLED])
+        cg.add(var.set_warm_enabled_sensor(sens))
 
     if CONF_CURRENT_HUMIDITY in config:
         sens = await sensor.new_sensor(config[CONF_CURRENT_HUMIDITY])
@@ -156,6 +175,9 @@ async def to_code(config):
     if CONF_TIMER_REMAINING in config:
         sens = await sensor.new_sensor(config[CONF_TIMER_REMAINING])
         cg.add(var.set_timer_remaining_sensor(sens))
+    if CONF_DISPLAY_CONFIG in config:
+        sens = await sensor.new_sensor(config[CONF_DISPLAY_CONFIG])
+        cg.add(var.set_display_config_sensor(sens))
     if CONF_MODE in config:
         sens = await sensor.new_sensor(config[CONF_MODE])
         cg.add(var.set_mode_sensor(sens))
@@ -165,6 +187,9 @@ async def to_code(config):
     if CONF_CONTAINER_STATE in config:
         sens = await sensor.new_sensor(config[CONF_CONTAINER_STATE])
         cg.add(var.set_container_state_sensor(sens))
+    if CONF_STATUS_BYTE_14 in config:
+        sens = await sensor.new_sensor(config[CONF_STATUS_BYTE_14])
+        cg.add(var.set_status_byte_14_sensor(sens))
     if CONF_OTHER_EXCEPTION in config:
         sens = await sensor.new_sensor(config[CONF_OTHER_EXCEPTION])
         cg.add(var.set_other_exception_sensor(sens))
@@ -175,3 +200,6 @@ async def to_code(config):
     if CONF_LAST_FRAME in config:
         sens = await text_sensor.new_text_sensor(config[CONF_LAST_FRAME])
         cg.add(var.set_last_frame_sensor(sens))
+    if CONF_LAST_ACK in config:
+        sens = await text_sensor.new_text_sensor(config[CONF_LAST_ACK])
+        cg.add(var.set_last_ack_sensor(sens))

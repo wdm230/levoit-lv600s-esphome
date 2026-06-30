@@ -120,7 +120,7 @@ Confirmed from stock firmware:
 | --- | --- | --- | --- |
 | Query status | `0x4110` | empty | Returns status payload |
 | Power | `0xA000` | `[bool]` | `00` off, `01` on |
-| Display | `0xA105` | `[level]` | `00` off, `64` on |
+| Display | `0xA105` | `[level]` | `0x00` off, `0x64` / 100 on |
 | Target humidity | `0xA2E8` | `[00, target]` | Target range 40-80 |
 | Timer | `0xA264` | `uint32_le seconds` | Max `43200` seconds |
 | Timer remaining report | `0xA265` | `uint16_le remaining_seconds` | Sent by MCU; parsed as state |
@@ -128,7 +128,7 @@ Confirmed from stock firmware:
 | Warm level | `0x4112` | `[level, 00, 00, 00, 00]` | Valid 0-3 |
 | Manual mode level | `0xA260` | `[warm_enable, mist_enable, level]` | Raw command exposed as diagnostic |
 | Humidity mode | `0x4114` | `[value, 00, 00, 00]` | Raw command exposed as diagnostic |
-| Sleep/auto mode | `0x4082` | `[value, 00, 00, 00, 00, 00]` | Raw command exposed as diagnostic |
+| Sleep mode | `0x4082` | `[value, 00, 00, 00, 00, 00]` | Raw command exposed as diagnostic |
 | MCU reboot | `0xD101` | `[value]` | Production/maintenance; do not expose normally |
 | UART test | `0xD007` | empty | Production/maintenance; do not expose normally |
 
@@ -156,15 +156,16 @@ Fields decoded from firmware log strings:
 | `3` | Power/enabled |
 | `4` | Container/tank state: `0` tank present, `1` tank removed |
 | `5` | Water lacks: `0` water OK, `1` water low/empty |
-| `6` | Display config |
-| `7` | Fog status: `0` not humidifying, `1` humidifying |
+| `6` | Display config; actual display-on state also requires power on and non-sleep mode |
+| `7` | Raw fog status. On the tested device this is inverted from the user-facing humidifying state: `0` while actively humidifying, nonzero while stopped/off. |
 | `8` | Target humidity |
 | `9` | Current humidity |
 | `10` | Current temperature |
 | `11` | Mode |
 | `12` | Mist level, directly matches the controlled mist level |
 | `13` | Warm level, directly matches the controlled warm level |
-| `14` | Other exception |
+| `14` | Unknown/reserved byte observed before other exception |
+| `15` | Other exception |
 
 ESPHome currently publishes the user-facing humidity and temperature from offsets
 `9` and `10`.
@@ -174,13 +175,22 @@ firmware handles command `0xA265`, stores the first two payload bytes as a
 little-endian remaining-seconds value, and then reports that as
 `extension.timer_remain` to the app.
 
+ESPHome derives these user-facing states from the raw status bytes:
+
+| State | Derivation |
+| --- | --- |
+| Display on | Power is on, display config is nonzero, and raw mode is not `2` / sleep |
+| Tank removed | Container state is nonzero |
+| Humidifying | Power is on, water/tank are OK, and raw fog status is `0` |
+| Warm enabled | Warm level is nonzero |
+
 ## Mode Findings
 
 The stock firmware uses four work-mode strings:
 
 | Stock string | Internal app mode | Notes |
 | --- | --- | --- |
-| `auto` | `0` | Reported as `auto`. The decompiled stock mode setter updates local state in the path found so far; direct UART behavior still needs device testing. |
+| `auto` | `0` | Reported as `auto`. The decompiled stock mode setter updates local app state; no separate direct MCU auto command was found in that path. |
 | `humidity` | `1` | Sends command `0x4114`; payload first byte is the saved humidity target. |
 | `sleep` | `2` or `3` | Sends command `0x4082`; payload first byte is the saved humidity target. Stock reporting maps both `2` and `3` to `sleep`. |
 | `manual` | `4` | Sends command `0xA260`; payload controls warm/mist enable and level. |
@@ -239,7 +249,7 @@ lv600s.yaml
 Primary exposed controls:
 
 - Power switch
-- Mode select: Manual, Target Humidity, Sleep / Auto
+- Mode select: Manual, Target Humidity, Sleep
 - Display switch
 - Target humidity number
 - Mist level number, 1-9
@@ -293,9 +303,7 @@ python -m esptool --chip esp32 --port <serial-port> --baud 460800 write-flash 0x
 
 ## Open Questions
 
-- Whether `auto` mode can be commanded directly through a UART frame, or whether
-  stock firmware treats it as local app state plus normal status polling.
-- Exact replacement-firmware behavior when switching between `auto`, `humidity`,
-  and `sleep`.
+- Exact device behavior after stock app-side `auto` state changes, since no direct
+  MCU auto command was found in the decompiled work-mode path.
 - Whether timer/display behavior is identical across all LV600S hardware revisions.
 - Whether this same component works unchanged on related Levoit/VeSync models.

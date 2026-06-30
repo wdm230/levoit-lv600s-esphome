@@ -40,10 +40,12 @@ Working status:
 - Tank removed status
 - Humidifying status
 - Timer remaining
-- Raw diagnostic fields disabled by default
+- Raw diagnostic fields disabled by default, including ACK/result frames and
+  reserved status bytes
 
-Raw diagnostic commands are included for manual mode, humidity mode, and sleep/auto
-mode. Their exact user-facing mapping still needs more testing.
+Raw diagnostic commands are included for manual mode, humidity mode, and sleep
+mode. Stock firmware reports an `auto` mode, but no separate direct MCU auto
+command was found in the decompiled work-mode path.
 
 
 ## Install
@@ -98,4 +100,5 @@ uvx esphome upload lv600s.yaml --device <device-ip>
 ## Protocol
 
 See [docs/protocol.md](docs/protocol.md) for the UART frame format, command IDs, and
-status payload offsets.
+status payload offsets. See [docs/firmware-decompile.md](docs/firmware-decompile.md)
+for the stock firmware decompile summary.

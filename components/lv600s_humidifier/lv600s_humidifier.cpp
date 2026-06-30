@@ -25,6 +25,12 @@ void LV600SHumidifier::loop() {
   }
 
   const uint32_t now = millis();
+  if (this->status_query_pending_ && static_cast<int32_t>(now - this->next_status_query_ms_) >= 0) {
+    this->query_status();
+    this->last_status_query_ms_ = now;
+    this->status_query_pending_ = false;
+  }
+
   if (this->status_interval_ms_ > 0 && now - this->last_status_query_ms_ >= this->status_interval_ms_) {
     this->query_status();
     this->last_status_query_ms_ = now;
@@ -41,34 +47,34 @@ void LV600SHumidifier::query_status() { this->send_command_(CMD_STATUS, nullptr,
 void LV600SHumidifier::set_power(bool on) {
   const uint8_t payload = on ? 0x01 : 0x00;
   this->send_command_(CMD_POWER, &payload, 1);
-  this->power_on_ = on;
+  this->schedule_status_query_();
 }
 
 void LV600SHumidifier::set_display(bool on) {
   const uint8_t payload = on ? 0x64 : 0x00;
   this->send_command_(CMD_DISPLAY, &payload, 1);
-  this->display_on_ = on;
+  this->schedule_status_query_();
 }
 
 void LV600SHumidifier::set_target_humidity(uint8_t target) {
   target = clamp<uint8_t>(target, 40, 80);
   const uint8_t payload[2] = {0x00, target};
   this->send_command_(CMD_TARGET_HUMIDITY, payload, sizeof(payload));
-  this->target_humidity_ = target;
+  this->schedule_status_query_();
 }
 
 void LV600SHumidifier::set_mist_level(uint8_t level) {
   level = clamp<uint8_t>(level, 1, 9);
   const uint8_t payload[4] = {level, 0x00, 0x00, 0x00};
   this->send_command_(CMD_MIST_LEVEL, payload, sizeof(payload));
-  this->mist_level_ = level;
+  this->schedule_status_query_();
 }
 
 void LV600SHumidifier::set_warm_level(uint8_t level) {
   level = clamp<uint8_t>(level, 0, 3);
   const uint8_t payload[5] = {level, 0x00, 0x00, 0x00, 0x00};
   this->send_command_(CMD_WARM_LEVEL, payload, sizeof(payload));
-  this->warm_level_ = level;
+  this->schedule_status_query_();
 }
 
 void LV600SHumidifier::set_timer_seconds(uint32_t seconds) {
@@ -80,8 +86,7 @@ void LV600SHumidifier::set_timer_seconds(uint32_t seconds) {
       static_cast<uint8_t>((seconds >> 24) & 0xFF),
   };
   this->send_command_(CMD_TIMER, payload, sizeof(payload));
-  this->timer_remaining_ = static_cast<uint16_t>(seconds);
-  if (this->timer_remaining_sensor_ != nullptr) this->timer_remaining_sensor_->publish_state(this->timer_remaining_);
+  this->schedule_status_query_();
 }
 
 void LV600SHumidifier::set_manual_mode_level(uint8_t warm_enable, uint8_t mist_enable, uint8_t level) {
@@ -92,51 +97,56 @@ void LV600SHumidifier::set_manual_mode_level(uint8_t warm_enable, uint8_t mist_e
       level,
   };
   this->send_command_(CMD_MANUAL_MODE_LEVEL, payload, sizeof(payload));
+  this->schedule_status_query_();
 }
 
 void LV600SHumidifier::set_humidity_mode_raw(uint8_t value) {
   const uint8_t payload[4] = {value, 0x00, 0x00, 0x00};
   this->send_command_(CMD_HUMIDITY_MODE, payload, sizeof(payload));
+  this->schedule_status_query_();
 }
 
-void LV600SHumidifier::set_sleep_auto_mode_raw(uint8_t value) {
+void LV600SHumidifier::set_sleep_mode_raw(uint8_t value) {
   const uint8_t payload[6] = {value, 0x00, 0x00, 0x00, 0x00, 0x00};
-  this->send_command_(CMD_SLEEP_AUTO_MODE, payload, sizeof(payload));
+  this->send_command_(CMD_SLEEP_MODE, payload, sizeof(payload));
+  this->schedule_status_query_();
 }
 
 void LV600SHumidifier::set_manual_mode() {
   const uint8_t level = clamp<uint8_t>(this->mist_level_ == 0 ? 1 : this->mist_level_, 1, 9);
   this->set_manual_mode_level(0, 1, level);
-  this->mode_ = 0;
 }
 
 void LV600SHumidifier::set_target_humidity_mode() {
   const uint8_t target = this->target_humidity_or_default_();
   this->set_humidity_mode_raw(target);
-  this->mode_ = 3;
 }
 
-void LV600SHumidifier::set_sleep_auto_mode() {
+void LV600SHumidifier::set_sleep_mode() {
   const uint8_t target = this->target_humidity_or_default_();
-  this->set_sleep_auto_mode_raw(target);
-  this->mode_ = 1;
+  this->set_sleep_mode_raw(target);
 }
 
 void LV600SHumidifier::reboot_mcu(uint8_t value) {
   this->send_command_(CMD_REBOOT_MCU, &value, 1);
+  this->schedule_status_query_(1000);
 }
 
-void LV600SHumidifier::uart_test() { this->send_command_(CMD_UART_TEST, nullptr, 0); }
+void LV600SHumidifier::uart_test() {
+  this->send_command_(CMD_UART_TEST, nullptr, 0);
+  this->schedule_status_query_();
+}
 
 std::string LV600SHumidifier::get_mode_name() const {
   switch (this->mode_) {
-    case 1:
-    case 2:
-      return "Sleep / Auto";
     case 3:
       return "Target Humidity";
-    default:
+    case 2:
+      return "Sleep";
+    case 1:
       return "Manual";
+    default:
+      return "Auto";
   }
 }
 
@@ -204,13 +214,17 @@ void LV600SHumidifier::process_body_(const uint8_t *body, uint16_t len) {
     this->process_status_(&body[4], payload_len);
   } else if (command == CMD_TIMER_REMAINING) {
     this->process_timer_remaining_(&body[4], payload_len);
+    this->process_ack_(command, &body[4], payload_len);
+  } else if (command == CMD_ACK_RESULT || command == CMD_TARGET_HUMIDITY || command == CMD_MANUAL_MODE_LEVEL ||
+             command == CMD_WARM_LEVEL || command == CMD_MIST_LEVEL) {
+    this->process_ack_(command, &body[4], payload_len);
   } else {
     ESP_LOGD(TAG, "RX command=0x%04X payload_len=%u", command, payload_len);
   }
 }
 
 void LV600SHumidifier::process_status_(const uint8_t *status, uint16_t len) {
-  if (len < 15) {
+  if (len < 16) {
     ESP_LOGW(TAG, "Short status payload len=%u", len);
     return;
   }
@@ -222,7 +236,7 @@ void LV600SHumidifier::process_status_(const uint8_t *status, uint16_t len) {
   this->power_on_ = status[3] != 0;
   this->container_state_ = status[4];
   this->water_lacks_ = status[5] != 0;
-  this->display_on_ = status[6] != 0;
+  this->display_config_ = status[6];
   this->fog_status_ = status[7];
   this->target_humidity_ = status[8];
   this->current_humidity_ = status[9];
@@ -230,22 +244,29 @@ void LV600SHumidifier::process_status_(const uint8_t *status, uint16_t len) {
   this->mode_ = status[11];
   this->mist_level_ = status[12];
   this->warm_level_ = status[13];
-  this->other_exception_ = status[14];
+  this->status_byte_14_ = status[14];
+  this->other_exception_ = status[15];
+  this->display_on_ = this->power_on_ && this->display_config_ != 0 && this->mode_ != 2;
+  this->humidifying_ = this->power_on_ && !this->water_lacks_ && this->container_state_ == 0 && this->fog_status_ == 0;
+  this->warm_enabled_ = this->warm_level_ != 0;
 
   if (this->power_sensor_ != nullptr) this->power_sensor_->publish_state(this->power_on_);
   if (this->display_sensor_ != nullptr) this->display_sensor_->publish_state(this->display_on_);
   if (this->water_lacks_sensor_ != nullptr) this->water_lacks_sensor_->publish_state(this->water_lacks_);
   if (this->tank_removed_sensor_ != nullptr) this->tank_removed_sensor_->publish_state(this->container_state_ != 0);
-  if (this->humidifying_sensor_ != nullptr) this->humidifying_sensor_->publish_state(this->fog_status_ != 0);
+  if (this->humidifying_sensor_ != nullptr) this->humidifying_sensor_->publish_state(this->humidifying_);
+  if (this->warm_enabled_sensor_ != nullptr) this->warm_enabled_sensor_->publish_state(this->warm_enabled_);
   if (this->current_humidity_sensor_ != nullptr) this->current_humidity_sensor_->publish_state(this->current_humidity_);
   if (this->current_temperature_sensor_ != nullptr)
     this->current_temperature_sensor_->publish_state(this->current_temperature_);
   if (this->target_humidity_sensor_ != nullptr) this->target_humidity_sensor_->publish_state(this->target_humidity_);
   if (this->mist_level_sensor_ != nullptr) this->mist_level_sensor_->publish_state(this->mist_level_);
   if (this->warm_level_sensor_ != nullptr) this->warm_level_sensor_->publish_state(this->warm_level_);
+  if (this->display_config_sensor_ != nullptr) this->display_config_sensor_->publish_state(this->display_config_);
   if (this->mode_sensor_ != nullptr) this->mode_sensor_->publish_state(this->mode_);
   if (this->fog_status_sensor_ != nullptr) this->fog_status_sensor_->publish_state(this->fog_status_);
   if (this->container_state_sensor_ != nullptr) this->container_state_sensor_->publish_state(this->container_state_);
+  if (this->status_byte_14_sensor_ != nullptr) this->status_byte_14_sensor_->publish_state(this->status_byte_14_);
   if (this->other_exception_sensor_ != nullptr) this->other_exception_sensor_->publish_state(this->other_exception_);
 
   if (this->mcu_version_sensor_ != nullptr) {
@@ -255,9 +276,12 @@ void LV600SHumidifier::process_status_(const uint8_t *status, uint16_t len) {
     this->mcu_version_sensor_->publish_state(version);
   }
 
-  ESP_LOGD(TAG, "Status power=%u display=%u water=%u hum=%u temp=%u target=%u mist=%u warm=%u mode=%u",
-           this->power_on_, this->display_on_, this->water_lacks_, this->current_humidity_,
-           this->current_temperature_, this->target_humidity_, this->mist_level_, this->warm_level_, this->mode_);
+  ESP_LOGD(TAG,
+           "Status power=%u display=%u display_config=%u water=%u fog=%u humidifying=%u hum=%u temp=%u target=%u "
+           "mist=%u warm=%u mode=%u",
+           this->power_on_, this->display_on_, this->display_config_, this->water_lacks_,
+           this->fog_status_, this->humidifying_, this->current_humidity_, this->current_temperature_,
+           this->target_humidity_, this->mist_level_, this->warm_level_, this->mode_);
 }
 
 void LV600SHumidifier::process_timer_remaining_(const uint8_t *payload, uint16_t len) {
@@ -269,6 +293,11 @@ void LV600SHumidifier::process_timer_remaining_(const uint8_t *payload, uint16_t
   this->timer_remaining_ = static_cast<uint16_t>(payload[0]) | (static_cast<uint16_t>(payload[1]) << 8);
   if (this->timer_remaining_sensor_ != nullptr) this->timer_remaining_sensor_->publish_state(this->timer_remaining_);
   ESP_LOGD(TAG, "Timer remaining=%u", this->timer_remaining_);
+}
+
+void LV600SHumidifier::process_ack_(uint16_t command, const uint8_t *payload, uint16_t len) {
+  this->publish_last_ack_(command, payload, len);
+  ESP_LOGD(TAG, "ACK/status command=0x%04X payload_len=%u", command, len);
 }
 
 void LV600SHumidifier::send_command_(uint16_t command, const uint8_t *payload, uint16_t payload_len,
@@ -315,6 +344,36 @@ void LV600SHumidifier::publish_last_frame_(uint16_t command, uint16_t payload_le
   char text[48];
   std::snprintf(text, sizeof(text), "cmd=0x%04X len=%u", command, payload_len);
   this->last_frame_sensor_->publish_state(text);
+}
+
+void LV600SHumidifier::publish_last_ack_(uint16_t command, const uint8_t *payload, uint16_t len) {
+  if (this->last_ack_sensor_ == nullptr) {
+    return;
+  }
+
+  char text[96];
+  int used = std::snprintf(text, sizeof(text), "cmd=0x%04X len=%u", command, len);
+  if (used < 0) {
+    return;
+  }
+  size_t pos = std::min<size_t>(static_cast<size_t>(used), sizeof(text) - 1);
+  const uint16_t bytes_to_show = std::min<uint16_t>(len, 12);
+  for (uint16_t i = 0; i < bytes_to_show && pos < sizeof(text) - 4; i++) {
+    used = std::snprintf(text + pos, sizeof(text) - pos, "%s%02X", i == 0 ? " payload=" : " ", payload[i]);
+    if (used < 0) {
+      break;
+    }
+    pos += static_cast<size_t>(used);
+  }
+  if (len > bytes_to_show && pos < sizeof(text) - 4) {
+    std::snprintf(text + pos, sizeof(text) - pos, " ...");
+  }
+  this->last_ack_sensor_->publish_state(text);
+}
+
+void LV600SHumidifier::schedule_status_query_(uint32_t delay_ms) {
+  this->next_status_query_ms_ = millis() + delay_ms;
+  this->status_query_pending_ = true;
 }
 
 void LV600SHumidifier::reset_rx_() {
