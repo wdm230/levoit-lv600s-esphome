@@ -92,8 +92,8 @@ Fields:
 | Field | Meaning |
 | --- | --- |
 | `A5` | Frame header |
-| `CTRL` | `0x22` for command with ACK request; ACK frames use a different control value |
-| `SEQ` | Incrementing sequence byte |
+| `CTRL` | Low nibble: protocol version `2`. Flags: `0x10` ACK/reply, `0x20` ACK requested, `0x40` error. Requests are `0x22`, ACKs `0x12`, error ACKs `0x52` |
+| `SEQ` | Incrementing sequence byte; an ACK echoes the sequence of the frame it acknowledges |
 | `LEN_L LEN_H` | Little-endian body length |
 | `CHECKSUM` | Ones-complement checksum |
 | `BODY` | Command body |
@@ -110,7 +110,18 @@ Command body:
 01 CMD_L CMD_H 00 PAYLOAD...
 ```
 
-The command ID is little-endian.
+The command ID is little-endian. In replies and ACKs the `00` byte after the
+command ID is a result code (`0` = OK).
+
+ACK frame sent by the stock ESP32 (`vesync_uart_tl_ack_send`):
+
+```text
+A5 12 <seq of request> 04 00 <checksum> 01 CMD_L CMD_H <result>
+```
+
+Error ACKs use CTRL `0x52`. The stock transport sends an empty error ACK for bad
+frames or a wrong protocol version, and an error ACK with result `52` for
+unknown MCU requests.
 
 ## Commands
 
@@ -129,6 +140,10 @@ Confirmed from stock firmware:
 | Manual mode level | `0xA260` | `[warm_enable, mist_enable, level]` | Raw command exposed as diagnostic |
 | Humidity mode | `0x4114` | `[value, 00, 00, 00]` | Raw command exposed as diagnostic |
 | Sleep mode | `0x4082` | `[value, 00, 00, 00, 00, 00]` | Raw command exposed as diagnostic |
+| Wi-Fi LED | `0xA129` | `[state, on_ms LE16, off_ms LE16, 00]` | State `0` off, `1` on, `2` blink; stock uses `1,0,0,0` when connected. Stock never sends it while the appliance is off and re-sends `1,0,0,0` after display on and after leaving sleep mode |
+| Timer query | `0xA265` | empty | ACKed with an empty payload on MCU 56.0.1; not useful |
+| Production progress | `0xD004` | | Factory only |
+| Production result | `0xD005` | | Factory only |
 | MCU reboot | `0xD101` | `[value]` | Production/maintenance; do not expose normally |
 | UART test | `0xD007` | empty | Production/maintenance; do not expose normally |
 
@@ -140,6 +155,19 @@ ACK/status-related IDs observed in the stock handler:
 | `0xA265` | Timer ACK path |
 | `0xA2E8` | Target humidity ACK path |
 | `0xA260` | Manual-mode ACK path |
+
+## MCU-Initiated Frames
+
+Frames the MCU sends on its own (CTRL without the `0x10` flag), handled by the
+stock `humidifier_uart_data_handle`:
+
+| Command | Payload | Stock handling |
+| --- | --- | --- |
+| `0x4111` | Same 20-byte layout as the `0x4110` status | Status push on change, decoded by `humidifier_update_dev_status`; not ACKed |
+| `0xA266` | `remain uint32_le, total uint32_le` seconds | Timer report (e.g. timer set on the panel); not ACKed |
+| `0xD102` / `0xD103` | `[action]` | Panel button action (`humidifier_uart_btn_act`); ACKed if requested. `2` sets the Wi-Fi LED behaviour, `3` starts Wi-Fi pairing, `4` factory reset, `1` ignored |
+| `0xD104` | `[mode]` | Factory self-test request; ACKed if requested |
+| other | | Error ACK with result `52` if an ACK was requested |
 
 ## Status Payload
 
@@ -267,10 +295,9 @@ Primary exposed sensors:
 - Humidifying
 - Timer remaining
 
-The `Mode` select is optimistic. The MCU status payload has a raw mode byte, but
-that byte does not currently behave like a direct Home Assistant select state, so
-the raw value is kept as a diagnostic while the select represents the last command
-sent from ESPHome.
+The `Mode` select is derived from the raw MCU mode byte using the stock remap
+(`0` auto, `1` manual, `2` sleep, `3` humidity). Auto can be shown but not
+selected remotely.
 
 Diagnostic/disabled-by-default entities:
 

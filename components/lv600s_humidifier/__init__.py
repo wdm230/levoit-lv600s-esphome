@@ -6,6 +6,7 @@ from esphome.const import (
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_PROBLEM,
+    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_TEMPERATURE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
@@ -22,8 +23,15 @@ lv600s_ns = cg.esphome_ns.namespace("lv600s_humidifier")
 LV600SHumidifier = lv600s_ns.class_(
     "LV600SHumidifier", cg.Component, uart.UARTDevice
 )
+LV600SSwitchType = lv600s_ns.enum("LV600SSwitchType", is_class=True)
+LV600SNumberType = lv600s_ns.enum("LV600SNumberType", is_class=True)
+LV600SButtonType = lv600s_ns.enum("LV600SButtonType", is_class=True)
 
+CONF_LV600S_ID = "lv600s_humidifier_id"
 CONF_STATUS_INTERVAL = "status_interval"
+CONF_WIFI_LED = "wifi_led"
+CONF_HOTSPOT_ON_LONG_PRESS = "hotspot_on_long_press"
+CONF_HOTSPOT_TIMEOUT = "hotspot_timeout"
 CONF_POWER = "power"
 CONF_DISPLAY = "display"
 CONF_WATER_LACKS = "water_lacks"
@@ -49,7 +57,13 @@ CONF_LAST_ACK = "last_ack"
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LV600SHumidifier),
-        cv.Optional(CONF_STATUS_INTERVAL, default="5s"): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_STATUS_INTERVAL, default="30s"): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_WIFI_LED, default=True): cv.boolean,
+        cv.Optional(CONF_HOTSPOT_ON_LONG_PRESS, default=True): cv.boolean,
+        cv.Optional(CONF_HOTSPOT_TIMEOUT, default="15min"): cv.All(
+            cv.positive_time_period_milliseconds,
+            cv.Range(min=cv.TimePeriod(minutes=1)),
+        ),
         cv.Optional(CONF_POWER): binary_sensor.binary_sensor_schema(
             device_class=DEVICE_CLASS_POWER,
         ),
@@ -91,6 +105,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_TIMER_REMAINING): sensor.sensor_schema(
             unit_of_measurement=UNIT_SECOND,
             accuracy_decimals=0,
+            device_class=DEVICE_CLASS_DURATION,
             state_class=STATE_CLASS_MEASUREMENT,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
@@ -137,6 +152,9 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     cg.add(var.set_status_interval(config[CONF_STATUS_INTERVAL].total_milliseconds))
+    cg.add(var.set_wifi_led(config[CONF_WIFI_LED]))
+    cg.add(var.set_hotspot_on_long_press(config[CONF_HOTSPOT_ON_LONG_PRESS]))
+    cg.add(var.set_hotspot_timeout(config[CONF_HOTSPOT_TIMEOUT].total_milliseconds))
 
     if CONF_POWER in config:
         sens = await binary_sensor.new_binary_sensor(config[CONF_POWER])

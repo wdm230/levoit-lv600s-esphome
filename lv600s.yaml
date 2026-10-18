@@ -10,10 +10,12 @@ esp32:
       CONFIG_FREERTOS_UNICORE: y
 
 logger:
-  level: INFO
+  level: DEBUG
   baud_rate: 0
   logs:
-    lv600s_humidifier: INFO
+    lv600s_humidifier: DEBUG
+    number: WARN
+    switch: WARN
     sensor: WARN
     binary_sensor: WARN
     text_sensor: WARN
@@ -52,7 +54,14 @@ uart:
 lv600s_humidifier:
   id: lv600s
   uart_id: mcu_uart
-  status_interval: 5s
+  # The MCU pushes status changes (0x4111), so polling is only a safety net.
+  status_interval: 30s
+  # Drive the Wi-Fi icon on the panel: on = Home Assistant connected, slow blink = not connected,
+  # fast blink = setup hotspot active.
+  wifi_led: true
+  # The panel long press that stock firmware uses for Wi-Fi pairing opens the "LV600S Setup" hotspot.
+  hotspot_on_long_press: true
+  hotspot_timeout: 15min
   power:
     name: "Power State"
     entity_category: diagnostic
@@ -119,82 +128,36 @@ lv600s_humidifier:
     disabled_by_default: true
 
 switch:
-  - platform: template
-    name: "Power"
-    lambda: return id(lv600s).is_power_on();
-    turn_on_action:
-      - lambda: id(lv600s).set_power(true);
-    turn_off_action:
-      - lambda: id(lv600s).set_power(false);
-
-  - platform: template
-    name: "Display"
-    lambda: return id(lv600s).is_display_on();
-    turn_on_action:
-      - lambda: id(lv600s).set_display(true);
-    turn_off_action:
-      - lambda: id(lv600s).set_display(false);
+  - platform: lv600s_humidifier
+    power:
+      name: "Power"
+    display:
+      name: "Display"
 
 select:
-  - platform: template
-    name: "Mode"
-    optimistic: true
-    restore_value: false
-    options:
-      - "Manual"
-      - "Target Humidity"
-      - "Sleep"
-    set_action:
-      - lambda: |-
-          if (x == "Manual") {
-            id(lv600s).set_manual_mode();
-          } else if (x == "Target Humidity") {
-            id(lv600s).set_target_humidity_mode();
-          } else if (x == "Sleep") {
-            id(lv600s).set_sleep_mode();
-          }
+  - platform: lv600s_humidifier
+    mode:
+      name: "Mode"
+
+event:
+  - platform: lv600s_humidifier
+    panel_button:
+      name: "Panel Button"
 
 number:
-  - platform: template
-    name: "Target Humidity"
-    min_value: 40
-    max_value: 80
-    step: 5
-    mode: slider
-    lambda: return id(lv600s).get_target_humidity();
-    set_action:
-      - lambda: id(lv600s).set_target_humidity((uint8_t) x);
-
-  - platform: template
-    name: "Mist Level"
-    min_value: 1
-    max_value: 9
-    step: 1
-    mode: slider
-    lambda: return id(lv600s).get_mist_level();
-    set_action:
-      - lambda: id(lv600s).set_mist_level((uint8_t) x);
-
-  - platform: template
-    name: "Warm Level"
-    min_value: 0
-    max_value: 3
-    step: 1
-    mode: slider
-    lambda: return id(lv600s).get_warm_level();
-    set_action:
-      - lambda: id(lv600s).set_warm_level((uint8_t) x);
-
-  - platform: template
-    name: "Timer Minutes"
-    min_value: 0
-    max_value: 720
-    step: 30
-    mode: box
-    optimistic: true
-    restore_value: false
-    set_action:
-      - lambda: id(lv600s).set_timer_seconds((uint32_t) (x * 60.0f));
+  - platform: lv600s_humidifier
+    target_humidity:
+      name: "Target Humidity"
+      mode: slider
+    mist_level:
+      name: "Mist Level"
+      mode: slider
+    warm_level:
+      name: "Warm Level"
+      mode: slider
+    timer_minutes:
+      name: "Timer Minutes"
+      mode: box
 
   - platform: template
     name: "Manual Mode Mist Level"
@@ -249,13 +212,10 @@ number:
       - lambda: id(lv600s).set_sleep_mode_raw((uint8_t) x);
 
 button:
-  - platform: template
-    name: "Query Status"
-    entity_category: diagnostic
-    on_press:
-      - lambda: id(lv600s).query_status();
-
-  - platform: template
-    name: "Clear Timer"
-    on_press:
-      - lambda: id(lv600s).clear_timer();
+  - platform: lv600s_humidifier
+    query_status:
+      name: "Query Status"
+    clear_timer:
+      name: "Clear Timer"
+    start_hotspot:
+      name: "Start Setup Hotspot"
